@@ -4,8 +4,10 @@
 
 char *getLine(FILE *ptrFile);
 
+/*Globals*/
+long g_LC=0;
+
 int main(int argc, char **argv) {
-  //Reading the file here
   FILE *ptr_file;
   if(!fopen(argv[1], "r")) {
     perror("Can not open file");
@@ -14,7 +16,14 @@ int main(int argc, char **argv) {
     ptr_file = fopen(argv[1], "r");
     char *readLine;
     while(strlen((readLine=getLine(ptr_file)))>1) {
+      char *wordInLine;
       printf("%s\n", readLine);
+      wordInLine = strtok(readLine, " ");
+      while (wordInLine != NULL) {
+        printf ("%s\n",wordInLine);
+        wordInLine = strtok (NULL, " ");
+      }
+      free(wordInLine);
       free(readLine);
     }
   }
