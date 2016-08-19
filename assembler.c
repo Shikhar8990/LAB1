@@ -47,6 +47,9 @@ typedef struct g_metaData {
   int LC;
   int numberOperands;
   int opCode;
+  int wordCount;
+  int valid;
+  char *words[4]; 
 } g_metaData;
 
 g_metaData *g_CodeInfo = NULL; 
@@ -73,23 +76,27 @@ int main(int argc, char **argv) {
       free(readLine);
     }
   }
-  printInfoForLine(0);
   return 0;
 }
 
 void populateInfoForLine(char* readLine, int line) {
-  char* wordInLine;
+  char* wordInLine = NULL;
   int wordCnt=0;
   wordInLine = strtok(readLine, " ");
+  printf("%s\n", wordInLine);
   while (wordInLine != NULL) {
-    if((wordInLine==";") && (wordCnt=0)) { /*first word is a comment*/
-      g_CodeInfo[line].lineType = COMMENT_ONLY;
+    if((strcmp(wordInLine,";")==0) || (wordInLine[0] == ';')) { 
+      if(wordCnt==0) {
+        g_CodeInfo[line].lineType = COMMENT_ONLY;
+        g_CodeInfo[line].valid = 0;
+      } 
+      break;
+    } else {
+        g_CodeInfo[line].words[wordCnt++] = wordInLine;
     }
-    printf ("%s\n",wordInLine);
     wordInLine = strtok (NULL, " ");
-    wordCnt++;
   }
-  free(wordInLine);
+  printf("%d\n", wordCnt);
 }
   
 char *getLine(FILE *ptrFile) {
