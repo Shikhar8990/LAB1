@@ -5,14 +5,14 @@
 /*Globals*/
 long g_LC=0;
 int  g_currentLine=0;
-int  g_LabelCnt=0;
+int  g_SymbolCnt=0;
 
 enum g_lineType {
   COMMENT_ONLY,
   OPCODE_OPERAND,
-  LABEL_OPCODE_OPERAND,
+  SYMBOL_OPCODE_OPERAND,
   OPCODE_OPERAND_COMMENT,
-  LABEL_OPCODE_OPERAND_COMMENT,
+  SYMBOL_OPCODE_OPERAND_COMMENT,
   INVALID
 } g_lineType;
 
@@ -48,6 +48,17 @@ enum g_OpCode {
   INVALID_OP
 } g_OpCode;
 
+enum g_Regs {
+  R0,
+  R1,
+  R2,
+  R3,
+  R4,
+  R5,
+  R6,
+  R7
+} g_Regs;
+
 enum g_PseudoOps {
   FILL,
   BLKW,
@@ -56,20 +67,20 @@ enum g_PseudoOps {
 
 enum g_WordType {
   UNKNOWN,
-  LABEL,
+  SYMBOL,
   OPCODE,
   OPERAND_REG,
   OPERAND_IMM,
-  OPERAND_LABEL,
+  OPERAND_SYMBOL,
   PSEUDO,
   ORIG,
   END
 } g_WordType;
 
-typedef struct g_LabelMap {
-  char label[20];
+typedef struct g_SymbolMap {
+  char symbol[20];
   long int addr;
-} g_LabelMap;
+} g_SymbolMap;
 
 typedef struct g_metaData {
   int lineType;
@@ -83,10 +94,11 @@ typedef struct g_metaData {
 } g_metaData;
 
 g_metaData *g_CodeInfo = NULL;
-g_LabelMap g_LMap[100]; /*100 labels*/ 
+g_SymbolMap g_LMap[100]; /*100 symbols*/ 
 
 char *getLine(FILE *ptrFile);
 void populateInfoForLine(char *readLine, int line);
+void createSymbolTable(char* readLine, int line);
 void printInfoForLine(int line);
 int isOpcode(char *inWord);
 int isPseudoOp(char *inWord);  
@@ -96,8 +108,8 @@ void printCodeDescription();
 void initLC(int inLC);
 void incrementLC();
 long int resolveNumber(char *inWord);
-void storeLabelMap(char *inLabel);
-void printLabelMap();
+void storeSymbolMap(char *inSymbol);
+void printSymbolMap();
 
 int main(int argc, char **argv) {
   FILE *ptr_file;
@@ -113,14 +125,57 @@ int main(int argc, char **argv) {
     while(strlen((readLine=getLine(ptr_file)))>1) {
       printf("----------------------\n");
       printf("Here1 %s\n", readLine);
-      populateInfoForLine(readLine, g_currentLine++);
+      /*populateInfoForLine(readLine, g_currentLine++);*/
+      createSymbolTable(readLine, g_currentLine++);
       free(readLine);
     }
   }
   printCodeDescription();
-  printLabelMap();
+  printSymbolMap();
   fclose(ptr_file);
   return 0;
+}
+
+void createSymbolTable(char* readLine, int line) {
+  char* wordInLine = NULL;
+  char wordHist[2][20];
+  int wordCnt=0;
+  wordInLine = strtok(readLine, " ");
+  while (wordInLine != NULL) {
+    printf("Here2 %s\n", wordInLine); 
+    if((strcmp(wordInLine,";")==0) || (wordInLine[0] == ';')) {
+      break;
+    } else {
+      /*see if first word is a symbol or an OpCode*/
+      if(wordCnt==0) {  
+        if(isOpcode(wordInLine)>0) {
+          g_CodeInfo[line].wordType[wordCnt] = OPCODE;       
+        } else if(strcmp(wordInLine, ".ORIG")==0) { /*.ORIG*/
+          g_CodeInfo[line].wordType[wordCnt] = ORIG;
+        } else if(strcmp(wordInLine, ".END")==0) { /*.END*/
+          g_CodeInfo[line].wordType[wordCnt] = END;
+        } else if(isPseudoOp(wordInLine)>0) {
+          g_CodeInfo[line].wordType[wordCnt] = PSEUDO;
+        } else { /*symbol*/
+          printf(" Here5 %s ", wordInLine);
+          g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
+          storeSymbolMap(wordInLine);
+        }
+      }
+      /*look at second words*/
+      if(wordCnt==1) {
+        if(g_CodeInfo[line].wordType[0]==ORIG) {
+          initLC(resolveNumber(wordInLine));
+        }
+      }
+    }
+    wordInLine = strtok (NULL, " ");
+    wordCnt++;
+  }
+  if((wordCnt!=0) && (g_CodeInfo[line].wordType[0]!=ORIG)) {
+    incrementLC();
+  }
+  printf("Here3 WordCnt %d LC %lx \n", wordCnt, g_CodeInfo[line].LC);
 }
 
 void populateInfoForLine(char* readLine, int line) {
@@ -138,7 +193,7 @@ void populateInfoForLine(char* readLine, int line) {
       break;
     } else {
       g_CodeInfo[line].words[wordCnt] = wordInLine;
-      /*see if first word is a label or an OpCode*/
+      /*see if first word is a symbol or an OpCode*/
       if(wordCnt==0) {  
         if(isOpcode(wordInLine)>0) {
           g_CodeInfo[line].wordType[wordCnt] = OPCODE;                  
@@ -148,11 +203,11 @@ void populateInfoForLine(char* readLine, int line) {
           g_CodeInfo[line].wordType[wordCnt] = END;
         } else if(isPseudoOp(wordInLine)>0) {
           g_CodeInfo[line].wordType[wordCnt] = PSEUDO;
-        } else { /*LABEL*/
-          /*TODO put in checks for valid label names*/
+        } else { /*symbol*/
+          /*TODO put in checks for valid symbol names*/
           printf(" Here5 %s ", wordInLine);
-          g_CodeInfo[line].wordType[wordCnt] = LABEL;
-          storeLabelMap(wordInLine);
+          g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
+          storeSymbolMap(wordInLine);
         }
       }
       /*look at second words*/
@@ -182,9 +237,9 @@ void incrementLC() {
   g_LC+=2;
 }
 
-void storeLabelMap(char *inLabel) {
-  strcpy(g_LMap[g_LabelCnt].label, inLabel);
-  g_LMap[g_LabelCnt++].addr = g_LC;
+void storeSymbolMap(char *inSymbol) {
+  strcpy(g_LMap[g_SymbolCnt].symbol, inSymbol);
+  g_LMap[g_SymbolCnt++].addr = g_LC;
 }
 
 long int resolveNumber(char *inWord) {
@@ -239,11 +294,11 @@ int isPseudoOp(char *inWord) {
   }
 }
 
-void printLabelMap() {
+void printSymbolMap() {
   printf("\n----------------------------\n");
   int cnt=0;
-  while(cnt<g_LabelCnt) {
-    printf("%s %lx \n", g_LMap[cnt].label, g_LMap[cnt].addr);
+  while(cnt<g_SymbolCnt) {
+    printf("%s %lx \n", g_LMap[cnt].symbol, g_LMap[cnt].addr);
     cnt++;
   } 
 }
@@ -254,9 +309,9 @@ const char* getLineType(enum g_lineType line) {
     case ORIG:                         return "ORIG"; break;
     case END:                          return "END"; break;
     case OPCODE_OPERAND:               return "OPCODE_OPERAND"; break;
-    case LABEL_OPCODE_OPERAND:         return "LABEL_OPCODE_OPERAND"; break;
+    case SYMBOL_OPCODE_OPERAND:        return "SYMBOL_OPCODE_OPERAND"; break;
     case OPCODE_OPERAND_COMMENT:       return "OPCODE_OPERAND_COMMENT"; break;
-    case LABEL_OPCODE_OPERAND_COMMENT: return "LABEL_OPCODE_OPERAND_COMMENT"; break;
+    case SYMBOL_OPCODE_OPERAND_COMMENT:return "SYMBOL_OPCODE_OPERAND_COMMENT"; break;
     case PSEUDO:                       return "PSEUDO"; break;
     default:                           return "INVALID";
   }
@@ -265,11 +320,11 @@ const char* getLineType(enum g_lineType line) {
 const char* getWordType(enum g_WordType inWord) {
   switch(inWord) {
     case UNKNOWN:       return "UNKNOWN"; break;
-    case LABEL:         return "LABEL"; break;
+    case SYMBOL:        return "SYMBOL"; break;
     case OPCODE:        return "OPCODE"; break;
     case OPERAND_REG:   return "OPERAND_REG"; break;
     case OPERAND_IMM:   return "OPERAND_IMM"; break;
-    case OPERAND_LABEL: return "OPERAND_LABEL"; break;
+    case OPERAND_SYMBOL:return "OPERAND_SYMBOL"; break;
     case PSEUDO:        return "PSEUDO"; break;
     case ORIG:          return "ORIG"; break;
     case END:           return "END"; break;
