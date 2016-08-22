@@ -241,7 +241,7 @@ void populateInfoForLine(char* readLine, int line) {
 void generateInstruction(char* readLine) {
   char* wordInLine = NULL;
   char words[4][20];
-  int wordCnt=0, instruction=0;
+  int wordCnt=0, instruction=0, opCode=0;
   wordInLine = strtok(readLine, " ,");
   while (wordInLine != NULL) {
     if((strcmp(wordInLine,";")==0) || (wordInLine[0]==';')) break;
@@ -255,6 +255,15 @@ void generateInstruction(char* readLine) {
   printf("\n");
   if(strcmp(words[0], ".ORIG")==0) {
     instruction = resolveNumber(words[1]);
+  } else if(isOpcode(words[0])>0) {
+    opCode = getOpCode(words[0]);
+    if(opCode != INVALID_OP) {
+      /*TODO the decode stuff here*/
+    }
+  } else if(isOpcode(words[1])>0) {
+    if(opCode != INVALID_OP) {
+      /*TODO the decode stuff here*/
+    }
   }
   printf("Here 0x%x\n", instruction); 
 }
@@ -315,6 +324,63 @@ int isOpcode(char *inWord) {
     return 1;    
   } else
     return 0;
+}
+
+int getOpCode(char *inWord) {
+  if(strcmp(inWord,"ADD")==0) 
+    return ADD;  
+  else if(strcmp(inWord,"AND")==0)
+    return AND; 
+  else if(strcmp(inWord,"BR")==0)
+    return BR; 
+  else if(strcmp(inWord,"BRN")==0)
+    return BRN; 
+  else if(strcmp(inWord,"BRP")==0)
+    return BRP;
+  else if(strcmp(inWord,"BRNP")==0)
+    return BRNP;
+  else if(strcmp(inWord,"TRAP")==0)
+    return TRAP;
+  else if(strcmp(inWord,"BRZ")==0)
+    return BRZ;
+  else if(strcmp(inWord,"BRNZ")==0)
+    return BRNZ;
+  else if(strcmp(inWord,"BRZP")==0)
+    return BRZP;
+  else if(strcmp(inWord,"BRNZP")==0)
+    return BRNZP;
+  else if(strcmp(inWord,"HALT")==0)
+    return HALT;
+  else if(strcmp(inWord,"JMP")==0)
+    return JMP;
+  else if(strcmp(inWord,"XOR")==0)
+    return XOR;
+  else if(strcmp(inWord,"JSR")==0)
+    return JSR;
+  else if(strcmp(inWord,"JSRR")==0)
+    return JSRR;
+  else if(strcmp(inWord,"LDB")==0)
+    return LDB;
+  else if(strcmp(inWord,"LDW")==0)
+    return LDW;
+  else if(strcmp(inWord,"LEA")==0)
+    return LEA;
+  else if(strcmp(inWord,"NOP")==0)
+    return NOP;
+  else if(strcmp(inWord,"NOT")==0)
+    return NOT;
+  else if(strcmp(inWord,"RET")==0)
+    return RET;
+  else if(strcmp(inWord,"LSHF")==0)
+    return LSHF;
+  else if(strcmp(inWord,"RSHFL")==0)
+    return RSHFL;
+  else if(strcmp(inWord,"RSHFA")==0)
+    return RSHFA;
+  else if(strcmp(inWord,"STB")==0)
+    return STB;
+  else
+    return INVALID_OP;
 }
 
 void setOpcode(char *inWord, int line) {
