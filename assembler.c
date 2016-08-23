@@ -49,14 +49,15 @@ enum g_OpCode {
 } g_OpCode;
 
 enum g_Regs {
-  R0,
-  R1,
-  R2,
-  R3,
-  R4,
-  R5,
-  R6,
-  R7
+  R0 = 0x0,
+  R1 = 0x1,
+  R2 = 0x2,
+  R3 = 0x3,
+  R4 = 0x4,
+  R5 = 0x5,
+  R6 = 0x6,
+  R7 = 0x7,
+  INVALID_REG = 0x8
 } g_Regs;
 
 enum g_PseudoOps {
@@ -78,6 +79,7 @@ enum g_WordType {
 } g_WordType;
 
 typedef struct g_SymbolMap {
+  int valid;
   char symbol[20];
   long int addr;
 } g_SymbolMap;
@@ -101,19 +103,21 @@ char *getLine(FILE *ptrFile);
 void populateInfoForLine(char *readLine, int line);
 void generateInstruction(char* readLine);
 void createSymbolTable(char* readLine, int line);
-void printInfoForLine(int line);
-int isOpcode(char *inWord);
 void setOpcode(char *inWord, int line);
-int isPseudoOp(char *inWord); 
 void makeInstruction(int inOpCode , int line, int inShiftLeft); 
-const char* getLineType(enum g_lineType line);
-const char* getWordType(enum g_WordType inWord);
-void printCodeDescription();
 void initLC(int inLC);
 void incrementLC();
-long int resolveNumber(char *inWord);
 void storeSymbolMap(char *inSymbol);
+void printInfoForLine(int line);
 void printSymbolMap();
+void printCodeDescription();
+void generateOpCode(int inOpCode, int inWordCnt, char (*inWord)[20], int inFirst);
+int isPseudoOp(char *inWord); 
+int isOpcode(char *inWord);
+const char* getLineType(enum g_lineType line);
+const char* getWordType(enum g_WordType inWord);
+long int resolveNumber(char *inWord);
+int findSymbol(char* inSymbol);
 
 int main(int argc, char **argv) {
   FILE *ptr_file;
@@ -259,10 +263,15 @@ void generateInstruction(char* readLine) {
     opCode = getOpCode(words[0]);
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
+      generateOpCode(opCode, wordCnt, (&words[0]), 1);  
     }
   } else if(isOpcode(words[1])>0) {
+    printf("\n Here66");
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
+      printf("\n Here77");
+      printf("\n Here77 %d", opCode);
+      generateOpCode(opCode, wordCnt, (&words[0]), 0);  
     }
   }
   printf("Here 0x%x\n", instruction); 
@@ -279,7 +288,19 @@ void incrementLC() {
 
 void storeSymbolMap(char *inSymbol) {
   strcpy(g_LMap[g_SymbolCnt].symbol, inSymbol);
-  g_LMap[g_SymbolCnt++].addr = g_LC;
+  g_LMap[g_SymbolCnt].valid=1;
+  g_LMap[g_SymbolCnt++].addr = g_LC; 
+}
+
+int findSymbol(char *inSymbol) {
+  int cnt=0; /* TODO This is ugly need to fix this*/
+  while(cnt<100) {
+    if((strcmp(inSymbol, g_LMap[cnt].symbol)==0) && (g_LMap[g_SymbolCnt].valid==1)) {
+      return cnt;
+    }
+    cnt++;
+  }
+  return 101;
 }
 
 long int resolveNumber(char *inWord) {
@@ -383,6 +404,19 @@ int getOpCode(char *inWord) {
     return INVALID_OP;
 }
 
+int getRegisterOperand(char *inWord) {
+  if(strcmp(inWord,"R0")==0) return R0;
+  else if(strcmp(inWord,"R1")==0) return R1;
+  else if(strcmp(inWord,"R2")==0) return R2; 
+  else if(strcmp(inWord,"R3")==0) return R3;
+  else if(strcmp(inWord,"R4")==0) return R4;
+  else if(strcmp(inWord,"R5")==0) return R5;
+  else if(strcmp(inWord,"R6")==0) return R6;
+  else if(strcmp(inWord,"R7")==0) return R7;
+  else return INVALID_REG;
+} 
+
+
 void setOpcode(char *inWord, int line) {
   if(strcmp(inWord,"ADD")==0) 
     g_CodeInfo[line].opCode=ADD;   
@@ -438,6 +472,27 @@ void setOpcode(char *inWord, int line) {
     g_CodeInfo[line].opCode=STB;
   else 
     g_CodeInfo[line].opCode=INVALID_OP;
+}
+
+void generateOpCode(int inOpCode, int inWordCnt, char (*inWord)[20], int inFirst) {
+  int inst=0;
+  if(inOpCode==LEA) {
+    inst|=(LEA<<12);
+    if(inFirst) {
+      printf("\n Here6");
+      inst|=((getRegisterOperand(inWord[1]))<<9);
+      if((inWord[2][0]=='x') || (inWord[2][0]=='#')) {
+        inst|=resolveNumber(inWord[2]);
+      } else { /*use it as a mnemonic*/
+        int loc = findSymbol(inWord[2]);
+        printf("\n Here7");
+        if(loc<100) {
+          inst|=g_LMap[loc].addr;
+          printf("\n Here8");
+        }
+      }
+    }
+  } 
 }
 
 int isPseudoOp(char *inWord) {
