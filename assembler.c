@@ -110,9 +110,10 @@ void storeSymbolMap(char *inSymbol);
 void printInfoForLine(int line);
 void printSymbolMap();
 void printCodeDescription();
-void generateOpCode(int inOpCode, int inWordCnt, char *inWord1, char *inWord2, char *inWord3);
+void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, char *inWord2, char *inWord3);
 int isPseudoOp(char *inWord); 
 int isOpcode(char *inWord);
+int isBR_NPZ(char *inWord, char inNZP);
 const char* getLineType(enum g_lineType line);
 const char* getWordType(enum g_WordType inWord);
 long int resolveNumber(char *inWord);
@@ -217,9 +218,14 @@ void generateInstruction(char* readLine) {
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
       opCode = getOpCode(words[1]);
-      generateOpCode(opCode, wordCnt, (&words[2][0]), (&words[3][0]), (&words[4][0]));  
+      generateOpCode(opCode, wordCnt, (&words[1][0]), (&words[2][0]), (&words[3][0]), (&words[4][0]));
     }
-  }
+  } else if(isPseudoOp(words[0])>0) {
+    generateOpCode(INVALID_OP, wordCnt, (&words[0][0]), (&words[1][0]), (&words[2][0]), (&words[3][0]));
+  } else if(isPseudoOp(words[1])>0) {
+    generateOpCode(INVALID_OP, wordCnt, (&words[1][0]), (&words[2][0]), (&words[3][0]), (&words[4][0]));
+  }  
+
   if(wordCnt!=0)
    incrementLC();
   printf("\n");
@@ -435,7 +441,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = (getRegisterOperand(inWord2)); /*SR1*/
     shift2 = 6;
     if((inWord3[0]=='x') || (inWord3[0]=='#')) {
-      op3 = resolveNumber(inWord3)|0x20 ;
+      op3 = (resolveNumber(inWord3)&0x7f)|0x20 ;
     } else { /*SR2*/
       op3 = (getRegisterOperand(inWord3));
     }
@@ -471,18 +477,20 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   /*BR(N/Z/P)*/
   else if(inOpCode==BR) {
     int nzp=0;
-    if((inOpCode==BRN) || (inOpCode==BRNP) || (inOpCode==BRNZ) || (inOpCode==BRNZP))
+    if(isBR_NPZ(inWord0, 'N')>0)
       nzp=4;
-    if((inOpCode==BRZ) || (inOpCode==BRNZ) || (inOpCode==BRZP) || (inOpCode==BRNZP))
-      nzp=2;
-    if((inOpCode==BRP) || (inOpCode==BRNP) || (inOpCode==BRZP) || (inOpCode==BRNZP))
+    if(isBR_NPZ(inWord0, 'Z')>0)
+      nzp|=2;
+    if(isBR_NPZ(inWord0, 'P')>0)
       nzp|=1;
+    if((isBR_NPZ(inWord0, 'N')==0) && (isBR_NPZ(inWord0, 'Z')==0) && (isBR_NPZ(inWord0, 'P')==0))
+      nzp=7;
     op1=nzp;
     shift1=9;
     if((inWord1[0]=='x') || (inWord1[0]=='#')) {
        op3 = resolveNumber(inWord3);
     } else { /*use it as a mnemonic*/
-      int loc = findSymbol(inWord3);
+      int loc = findSymbol(inWord1);
       if(loc<100) {
         op3 = offset(g_LMap[loc].addr);
       }
@@ -492,6 +500,10 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   else if(inOpCode==HALT) {
     op1=0x25;
   }
+  /*PSEUDO OPS*/
+  else if((isPseudoOp(inWord0))>0) {
+    op3=resolveNumber(inWord1);
+  }
   inst = makeOpcode(inOpCode, op1, shift1, op2, shift2, op3, shift3);
   printf(" Decode: %x ",inst); 
 }
@@ -499,7 +511,8 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
 int makeOpcode(int inOpCode, int inOp1, int inShift1, int inOp2, int inShift2, int inOp3, 
                int inShift3) {
   int inst=0;
-  inst|=(inOpCode<<12);
+  if(inOpCode!=INVALID_OP)
+    inst|=(inOpCode<<12);
   inst|=(inOp1<<inShift1);
   inst|=(inOp2<<inShift2);
   inst|=(inOp3<<inShift3);
@@ -515,7 +528,10 @@ int isPseudoOp(char *inWord) {
 }
 
 int offset(long int inAddr) {
-  return ((inAddr-g_LC)/2)-1;
+  int offset = ((inAddr-g_LC)/2)-1;
+  offset&=0x1ff;
+  /*printf(" Here Offset = %d ||| %x", offset, offset);*/
+  return offset;
 }
 
 void printSymbolMap() {
@@ -524,6 +540,18 @@ void printSymbolMap() {
     printf("%s %lx \n", g_LMap[cnt].symbol, g_LMap[cnt].addr);
     cnt++;
   } 
+}
+
+int isBR_NPZ(char *inWord, char inNZP) {
+  int index=2;
+  if(inWord[0]=='B' && inWord[1]=='R') {
+    while(index<strlen(inWord)) {
+      if(inWord[index++]==inNZP) {
+        return 1;
+      }
+    }
+  }
+  return 0;
 }
 
 const char* getLineType(enum g_lineType line) {
