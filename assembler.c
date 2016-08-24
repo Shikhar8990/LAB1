@@ -4,6 +4,7 @@
 
 /*Globals*/
 long g_LC=0;
+long g_Orig=0;
 int  g_currentLine=0;
 int  g_SymbolCnt=0;
 
@@ -100,18 +101,16 @@ g_metaData *g_CodeInfo = NULL;
 g_SymbolMap g_LMap[100]; /*100 symbols*/ 
 
 char *getLine(FILE *ptrFile);
-void populateInfoForLine(char *readLine, int line);
 void generateInstruction(char* readLine);
 void createSymbolTable(char* readLine, int line);
 void setOpcode(char *inWord, int line);
-void makeInstruction(int inOpCode , int line, int inShiftLeft); 
 void initLC(int inLC);
 void incrementLC();
 void storeSymbolMap(char *inSymbol);
 void printInfoForLine(int line);
 void printSymbolMap();
 void printCodeDescription();
-void generateOpCode(int inOpCode, int inWordCnt, char (*inWord)[20], int inFirst);
+void generateOpCode(int inOpCode, int inWordCnt, char *inWord1, char *inWord2, char *inWord3);
 int isPseudoOp(char *inWord); 
 int isOpcode(char *inWord);
 const char* getLineType(enum g_lineType line);
@@ -130,7 +129,8 @@ int main(int argc, char **argv) {
   } else {
     /*First Pass*/
     ptr_file = fopen(argv[1], "r");
-    printf("First Pass\n"); 
+    printf("First Pass\n");
+    printf("-----------\n"); 
     char *readLine;
     while(strlen((readLine=getLine(ptr_file)))>1) {
       createSymbolTable(readLine, g_currentLine++);
@@ -139,11 +139,11 @@ int main(int argc, char **argv) {
     printSymbolMap();
     fclose(ptr_file);
     /*Second Pass*/
-    printf("Second Pass\n"); 
+    printf("Second Pass\n");
+    printf("-----------\n"); 
     ptr_file = fopen(argv[1], "r"); 
+    g_LC=g_Orig;
     while(strlen((readLine=getLine(ptr_file)))>1) {
-      printf("----------------------\n");
-      /*printf("Here1 %s\n", readLine);*/
       generateInstruction(readLine);
       free(readLine);
     }
@@ -178,68 +178,16 @@ void createSymbolTable(char* readLine, int line) {
       if(wordCnt==1) {
         if(g_CodeInfo[line].wordType[0]==ORIG) {
           initLC(resolveNumber(wordInLine));
+          g_Orig = g_LC; 
         }
       }
     }
     wordInLine = strtok (NULL, " ,");
     wordCnt++;
   }
-  if((wordCnt!=0) && (g_CodeInfo[line].wordType[0]!=ORIG)) {
+  if((wordCnt!=0) /*&& (g_CodeInfo[line].wordType[0]!=ORIG)*/) {
     incrementLC();
   }
-}
-
-void populateInfoForLine(char* readLine, int line) {
-  char* wordInLine = NULL;
-  int wordCnt=0;
-  wordInLine = strtok(readLine, " ,");
-  g_CodeInfo[line].LC = g_LC;
-  while (wordInLine != NULL) {
-    printf("Here2 %s\n", wordInLine);
-    if((strcmp(wordInLine,";")==0) || (wordInLine[0] == ';')) { 
-      break;
-    } else {
-      g_CodeInfo[line].words[wordCnt] = wordInLine;
-      /*see if first word is a symbol or an OpCode*/
-      if(wordCnt==0) {  
-        if(isOpcode(wordInLine)>0) {
-          g_CodeInfo[line].wordType[wordCnt] = OPCODE;                 
-          setOpcode(wordInLine, line);
-          makeInstruction(g_CodeInfo[line].opCode, line, 12); 
-        } else if(strcmp(wordInLine, ".ORIG")==0) { /*.ORIG*/
-          g_CodeInfo[line].wordType[wordCnt] = ORIG;
-        } else if(strcmp(wordInLine, ".END")==0) { /*.END*/
-          g_CodeInfo[line].wordType[wordCnt] = END;
-        } else if(isPseudoOp(wordInLine)>0) {
-          g_CodeInfo[line].wordType[wordCnt] = PSEUDO;
-        } else { /*symbol*/
-          /*TODO put in checks for valid symbol names*/
-          g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
-        }
-      }
-      /*look at second words*/
-      if(wordCnt==1) {
-        if(g_CodeInfo[line].wordType[0]==ORIG) {
-          initLC(resolveNumber(g_CodeInfo[line].words[wordCnt]));
-          g_CodeInfo[line].LC = g_LC;
-          /*resolveNumber(g_CodeInfo[line].words[wordCnt]);*/
-        } else if(isOpcode(wordInLine)>0) {
-          g_CodeInfo[line].wordType[wordCnt] = OPCODE;
-          setOpcode(wordInLine, line);
-          makeInstruction(g_CodeInfo[line].opCode, line, 12); 
-        } /*else if(isRegisterOperand(wordInLine)>0) {
-          makeInstruction(getRegisterOperand, line, 3);    
-        }*/
-      }
-    }
-    wordInLine = strtok (NULL, " ,");
-    wordCnt++;
-  }
-  if(wordCnt!=0) {
-    incrementLC();
-  }
-  printf("Here3 WordCnt %d LC %lx \n", wordCnt, g_CodeInfo[line].LC);
-  g_CodeInfo[line].wordCount = wordCnt;
 }
 
 void generateInstruction(char* readLine) {
@@ -253,28 +201,28 @@ void generateInstruction(char* readLine) {
     wordInLine = strtok (NULL, " ,");
   }
   int x=0;
+  printf(" LC=0x%lx ", g_LC);
   while(x<wordCnt) {
-    printf("%s ",words[x++]);
+    printf(" %s ",words[x++]);
   }
-  printf("\n");
   if(strcmp(words[0], ".ORIG")==0) {
     instruction = resolveNumber(words[1]);
   } else if(isOpcode(words[0])>0) {
     opCode = getOpCode(words[0]);
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
-      generateOpCode(opCode, wordCnt, (&words[0]), 1);  
+      generateOpCode(opCode, wordCnt, (&words[0][0]), (&words[1][0]), (&words[2][0]), (&words[3][0]));  
     }
   } else if(isOpcode(words[1])>0) {
-    printf("\n Here66");
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
-      printf("\n Here77");
-      printf("\n Here77 %d", opCode);
-      generateOpCode(opCode, wordCnt, (&words[0]), 0);  
+      opCode = getOpCode(words[1]);
+      generateOpCode(opCode, wordCnt, (&words[2][0]), (&words[3][0]), (&words[4][0]));  
     }
   }
-  printf("Here 0x%x\n", instruction); 
+  if(wordCnt!=0)
+   incrementLC();
+  printf("\n");
 }
 
 
@@ -295,7 +243,7 @@ void storeSymbolMap(char *inSymbol) {
 int findSymbol(char *inSymbol) {
   int cnt=0; /* TODO This is ugly need to fix this*/
   while(cnt<100) {
-    if((strcmp(inSymbol, g_LMap[cnt].symbol)==0) && (g_LMap[g_SymbolCnt].valid==1)) {
+    if((strcmp(inSymbol, g_LMap[cnt].symbol)==0) && (g_LMap[cnt].valid==1)) {
       return cnt;
     }
     cnt++;
@@ -307,15 +255,16 @@ long int resolveNumber(char *inWord) {
   char number[strlen(inWord)];
   long int num;
   char *end_ptr;
-  printf("Here4 %c\n", inWord[0]);
   strncpy(number, inWord+1, (strlen(inWord))); 
-  if(inWord[0]=='x') { 
-    num = strtol(number, &end_ptr, 16); 
-    printf("Here4 %ld\n", num);
+  if(inWord[0]=='x') {
+    if(inWord[1]=='-') {
+      num = (~strtol(number, &end_ptr, 16))+1;
+    }
+    else  
+      num = strtol(number, &end_ptr, 16);
   }
   else if(inWord[0]=='#') { 
     num = atoi(number);
-    printf("Here4 %ld\n", num);
   }
   return num;
 }
@@ -474,25 +423,87 @@ void setOpcode(char *inWord, int line) {
     g_CodeInfo[line].opCode=INVALID_OP;
 }
 
-void generateOpCode(int inOpCode, int inWordCnt, char (*inWord)[20], int inFirst) {
+void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, char *inWord2, char *inWord3) {
   int inst=0;
+  /*TODO - Immediate offset values need to be resolved .. not done*/
+  int op1=0, op2=0, op3=0;
+  int shift1=0, shift2=0, shift3=0;
+  /*ADD*/
+  if(inOpCode==ADD) {
+    op1 = (getRegisterOperand(inWord1)); /*DR*/
+    shift1 = 9;
+    op2 = (getRegisterOperand(inWord2)); /*SR1*/
+    shift2 = 6;
+    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+      op3 = resolveNumber(inWord3)|0x20 ;
+    } else { /*SR2*/
+      op3 = (getRegisterOperand(inWord3));
+    }
+  }
+  /*LEA*/
   if(inOpCode==LEA) {
-    inst|=(LEA<<12);
-    if(inFirst) {
-      printf("\n Here6");
-      inst|=((getRegisterOperand(inWord[1]))<<9);
-      if((inWord[2][0]=='x') || (inWord[2][0]=='#')) {
-        inst|=resolveNumber(inWord[2]);
-      } else { /*use it as a mnemonic*/
-        int loc = findSymbol(inWord[2]);
-        printf("\n Here7");
-        if(loc<100) {
-          inst|=g_LMap[loc].addr;
-          printf("\n Here8");
-        }
+    op1 = (getRegisterOperand(inWord1)); 
+    shift1 = 9;
+    if((inWord2[0]=='x') || (inWord2[0]=='#')) {
+      op2 = resolveNumber(inWord2);
+    } else { /*use it as a mnemonic*/
+      int loc = findSymbol(inWord2);
+      if(loc<100) {
+        op2 = offset(g_LMap[loc].addr);
       }
     }
-  } 
+  }
+  /*LDW*/
+  else if(inOpCode==LDW) {
+    op1 = (getRegisterOperand(inWord1));
+    shift1 = 9;
+    op2 = (getRegisterOperand(inWord2));
+    shift2 = 6;
+    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+      op3 = resolveNumber(inWord3);
+    } else { /*use it as a mnemonic*/
+      int loc = findSymbol(inWord3);
+      if(loc<100) {
+        op3 = offset(g_LMap[loc].addr);
+      }
+    }
+  }
+  /*BR(N/Z/P)*/
+  else if(inOpCode==BR) {
+    int nzp=0;
+    if((inOpCode==BRN) || (inOpCode==BRNP) || (inOpCode==BRNZ) || (inOpCode==BRNZP))
+      nzp=4;
+    if((inOpCode==BRZ) || (inOpCode==BRNZ) || (inOpCode==BRZP) || (inOpCode==BRNZP))
+      nzp=2;
+    if((inOpCode==BRP) || (inOpCode==BRNP) || (inOpCode==BRZP) || (inOpCode==BRNZP))
+      nzp|=1;
+    op1=nzp;
+    shift1=9;
+    if((inWord1[0]=='x') || (inWord1[0]=='#')) {
+       op3 = resolveNumber(inWord3);
+    } else { /*use it as a mnemonic*/
+      int loc = findSymbol(inWord3);
+      if(loc<100) {
+        op3 = offset(g_LMap[loc].addr);
+      }
+    }
+  }
+  /*HALT*/
+  else if(inOpCode==HALT) {
+    op1=0x25;
+  }
+  inst = makeOpcode(inOpCode, op1, shift1, op2, shift2, op3, shift3);
+  printf(" Decode: %x ",inst); 
+}
+
+int makeOpcode(int inOpCode, int inOp1, int inShift1, int inOp2, int inShift2, int inOp3, 
+               int inShift3) {
+  int inst=0;
+  inst|=(inOpCode<<12);
+  inst|=(inOp1<<inShift1);
+  inst|=(inOp2<<inShift2);
+  inst|=(inOp3<<inShift3);
+  return inst;
 }
 
 int isPseudoOp(char *inWord) {
@@ -503,12 +514,11 @@ int isPseudoOp(char *inWord) {
   }
 }
 
-void makeInstruction(int inOpCode, int line, int inShiftLeft) {
-  g_CodeInfo[line].instruction|=(inOpCode<<12);
+int offset(long int inAddr) {
+  return ((inAddr-g_LC)/2)-1;
 }
 
 void printSymbolMap() {
-  printf("\n----------------------------\n");
   int cnt=0;
   while(cnt<g_SymbolCnt) {
     printf("%s %lx \n", g_LMap[cnt].symbol, g_LMap[cnt].addr);
