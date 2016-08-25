@@ -434,8 +434,8 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   /*TODO - Immediate offset values need to be resolved .. not done*/
   int op1=0, op2=0, op3=0;
   int shift1=0, shift2=0, shift3=0;
-  /*ADD*/
-  if(inOpCode==ADD) {
+  /*ADD and AND*/
+  if((inOpCode==ADD) || (inOpCode==AND)) {
     op1 = (getRegisterOperand(inWord1)); /*DR*/
     shift1 = 9;
     op2 = (getRegisterOperand(inWord2)); /*SR1*/
@@ -451,26 +451,26 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op1 = (getRegisterOperand(inWord1)); 
     shift1 = 9;
     if((inWord2[0]=='x') || (inWord2[0]=='#')) {
-      op2 = resolveNumber(inWord2);
+      op2 = resolveNumber(inWord2)&0x1ff;
     } else { /*use it as a mnemonic*/
       int loc = findSymbol(inWord2);
       if(loc<100) {
-        op2 = offset(g_LMap[loc].addr);
+        op2 = offset(g_LMap[loc].addr)&0x1ff;
       }
     }
   }
-  /*LDW*/
-  else if(inOpCode==LDW) {
+  /*LDW and LDB*/
+  else if(inOpCode==LDW || (inOpCode==LDB)) {
     op1 = (getRegisterOperand(inWord1));
     shift1 = 9;
     op2 = (getRegisterOperand(inWord2));
     shift2 = 6;
     if((inWord3[0]=='x') || (inWord3[0]=='#')) {
-      op3 = resolveNumber(inWord3);
+      op3 = resolveNumber(inWord3)&0x3f;
     } else { /*use it as a mnemonic*/
       int loc = findSymbol(inWord3);
       if(loc<100) {
-        op3 = offset(g_LMap[loc].addr);
+        op3 = offset(g_LMap[loc].addr)&0x3f;
       }
     }
   }
