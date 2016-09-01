@@ -224,7 +224,11 @@ void generateInstruction(char* readLine) {
     generateOpCode(INVALID_OP, wordCnt, (&words[0][0]), (&words[1][0]), (&words[2][0]), (&words[3][0]));
   } else if(isPseudoOp(words[1])>0) {
     generateOpCode(INVALID_OP, wordCnt, (&words[1][0]), (&words[2][0]), (&words[3][0]), (&words[4][0]));
-  }  
+  } else {
+    if((wordCnt!=0) && (strcmp(words[0],".END")!=0)) {
+      printf(" ERROR - Invalid OPCODE \n");
+    }
+  } 
 
   if(wordCnt!=0)
    incrementLC();
@@ -368,9 +372,11 @@ int getRegisterOperand(char *inWord) {
   else if(strcmp(inWord,"R5")==0) return R5;
   else if(strcmp(inWord,"R6")==0) return R6;
   else if(strcmp(inWord,"R7")==0) return R7;
-  else return INVALID_REG;
-} 
-
+  else {
+    printf(" ERROR - Invalid Register \n");
+    return INVALID_REG;
+  }
+}
 
 void setOpcode(char *inWord, int line) {
   if(strcmp(inWord,"ADD")==0) 
@@ -456,6 +462,8 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
       int loc = findSymbol(inWord2);
       if(loc<100) {
         op2 = offset(g_LMap[loc].addr)&0x1ff;
+      } else {
+        printf(" ERROR - Invalid Label\n");
       }
     }
   }
@@ -471,6 +479,8 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
       int loc = findSymbol(inWord3);
       if(loc<100) {
         op3 = offset(g_LMap[loc].addr)&0x3f;
+      } else {
+        printf(" ERROR - Invalid Label\n");
       }
     }
   }
@@ -493,6 +503,8 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
       int loc = findSymbol(inWord1);
       if(loc<100) {
         op3 = offset(g_LMap[loc].addr);
+      } else {
+        printf(" ERROR - Invalid Label\n");
       }
     }
   }
