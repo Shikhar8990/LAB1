@@ -265,16 +265,23 @@ long int resolveNumber(char *inWord) {
   char number[strlen(inWord)];
   long int num;
   char *end_ptr;
-  strncpy(number, inWord+1, (strlen(inWord))); 
   if(inWord[0]=='x') {
     if(inWord[1]=='-') {
+      strncpy(number, inWord+2, (strlen(inWord))); 
       num = (~strtol(number, &end_ptr, 16))+1;
-    }
-    else  
+    } else {  
+      strncpy(number, inWord+1, (strlen(inWord))); 
       num = strtol(number, &end_ptr, 16);
+    }
   }
-  else if(inWord[0]=='#') { 
-    num = atoi(number);
+  else if(inWord[0]=='#') {
+    if(inWord[1]=='-') {
+      strncpy(number, inWord+2, (strlen(inWord))); 
+      num = (~atoi(number))+1;
+    } else {
+      strncpy(number, inWord+1, (strlen(inWord))); 
+      num = atoi(number);
+    }
   }
   return num;
 }
@@ -447,7 +454,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = (getRegisterOperand(inWord2)); /*SR1*/
     shift2 = 6;
     if((inWord3[0]=='x') || (inWord3[0]=='#')) {
-      op3 = (resolveNumber(inWord3)&0x7f)|0x20 ;
+      op3 = (resolveNumber(inWord3)&0x1f)|0x20 ;
     } else { /*SR2*/
       op3 = (getRegisterOperand(inWord3));
     }
