@@ -79,6 +79,15 @@ enum g_WordType {
   END
 } g_WordType;
 
+enum g_Numvalue {
+  IMM5     = 0x0,
+  OFFSET5  = 0x1,
+  OFFSET6  = 0x2,
+  OFFSET9  = 0x3,
+  OFFSET11 = 0x4,
+  AMT4     = 0x5
+} g_Numvalue;
+
 typedef struct g_SymbolMap {
   int valid;
   char symbol[20];
@@ -285,6 +294,40 @@ long int resolveNumber(char *inWord) {
   }
   return num;
 }
+
+void checkNumber(char *inWord, int value) {
+  char number[strlen(inWord)];
+  long int num;
+  char *end_ptr;
+  if(inWord[0]=='x') {
+    if(inWord[1]=='-') {
+      strncpy(number, inWord+2, (strlen(inWord)));
+      num = strtol(number, &end_ptr, 16);
+      if((num>16) && (value == IMM5)) printf("ERROR - Value out of range\n");
+      if((num>256) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
+      if(value == AMT4) printf("ERROR - Negative SHF value\n");
+    } else {
+      strncpy(number, inWord+1, (strlen(inWord)));
+      num = strtol(number, &end_ptr, 16);
+      if((num>15) && ((value == IMM5)||(value == AMT4))) printf("ERROR - Value out of range\n");
+      if((num>255) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
+    }
+  }
+  else if(inWord[0]=='#') {
+    if(inWord[1]=='-') {
+      strncpy(number, inWord+2, (strlen(inWord)));
+      num = atoi(number);
+      if((num>16) && (value == IMM5)) printf("ERROR - Value out of range\n");
+      if((num>256) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
+      if(value == AMT4) printf("ERROR - Negative SHF value\n");
+    } else {
+      strncpy(number, inWord+1, (strlen(inWord)));
+      num = atoi(number);
+      if((num>15) && ((value == IMM5)||(value == AMT4))) printf("ERROR - Value out of range\n");
+      if((num>255) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
+    }
+  }
+}
   
 char *getLine(FILE *ptrFile) {
   char *str;
@@ -454,6 +497,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = (getRegisterOperand(inWord2)); /*SR1*/
     shift2 = 6;
     if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+      checkNumber(inWord3, IMM5);
       op3 = (resolveNumber(inWord3)&0x1f)|0x20 ;
     } else { /*SR2*/
       op3 = (getRegisterOperand(inWord3));
@@ -491,6 +535,21 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
       }
     }
   }
+  /*SHIFT*/
+  else if(inOpCode==RSHFA) {
+    op1 = getRegisterOperand(inWord1);
+    shift1 = 9;
+    op2 = getRegisterOperand(inWord2);
+    shift2 = 6;
+    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+      op3 = resolveNumber(inWord3)&0xf;
+      checkNumber(inWord3, AMT4);
+      if(strcmp(inWord3, "RSHFA")==0)
+        op3 = op3|(0x30);
+      else if(strcmp(inWord3, "RSHFL")==0)
+        op3 = op3|(0x10);
+    } 
+  }
   /*BR(N/Z/P)*/
   else if(inOpCode==BR) {
     int nzp=0;
@@ -505,6 +564,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op1=nzp;
     shift1=9;
     if((inWord1[0]=='x') || (inWord1[0]=='#')) {
+       checkNumber(inWord1, OFFSET9);
        op3 = resolveNumber(inWord3);
     } else { /*use it as a mnemonic*/
       int loc = findSymbol(inWord1);
