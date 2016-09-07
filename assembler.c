@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /*Globals*/
 long g_LC=0;
@@ -127,6 +128,7 @@ const char* getLineType(enum g_lineType line);
 const char* getWordType(enum g_WordType inWord);
 long int resolveNumber(char *inWord);
 int findSymbol(char* inSymbol);
+int isValidLabel(char *inWord);
 
 int main(int argc, char **argv) {
   FILE *ptr_file;
@@ -181,6 +183,10 @@ void createSymbolTable(char* readLine, int line) {
           g_CodeInfo[line].wordType[wordCnt] = PSEUDO;
         } else { /*symbol*/
           g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
+          if(isValidLabel(wordInLine)==0) {
+            printf("ERROR - Invalid Label \n");
+            exit(1);
+          }
           storeSymbolMap(wordInLine);
         }
       }
@@ -217,6 +223,10 @@ void generateInstruction(char* readLine) {
   }
   if(strcmp(words[0], ".ORIG")==0) {
     instruction = resolveNumber(words[1]);
+    if(instruction%2!=0) {
+      printf(" ERROR - Invalid Constant \n");
+      exit(3);
+    }
   } else if(isOpcode(words[0])>0) {
     opCode = getOpCode(words[0]);
     if(opCode != INVALID_OP) {
@@ -236,9 +246,9 @@ void generateInstruction(char* readLine) {
   } else {
     if((wordCnt!=0) && (strcmp(words[0],".END")!=0)) {
       printf(" ERROR - Invalid OPCODE \n");
+      exit(2);
     }
   } 
-
   if(wordCnt!=0)
    incrementLC();
   printf("\n");
@@ -301,39 +311,116 @@ void checkNumber(char *inWord, int value) {
   char *end_ptr;
   if(inWord[0]=='x') {
     if(inWord[1]=='-') {
-      strncpy(number, inWord+2, (strlen(inWord)));
-      num = strtol(number, &end_ptr, 16);
-      if((num>16) && (value == IMM5)) printf("ERROR - Value out of range\n");
-      if((num>32) && (value == OFFSET6)) printf("ERROR - Value out of range\n");
-      if((num>256) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
-      if(value == AMT4) printf("ERROR - Negative SHF value\n");
+      if(isdigit(inWord[2])) {
+        strncpy(number, inWord+2, (strlen(inWord)));
+        num = strtol(number, &end_ptr, 16);
+        if((num>16) && (value == IMM5)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>32) && (value == OFFSET6)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>256) && (value == OFFSET9)) {
+          printf("ERROR - Value out of range\n"); 
+          exit(3);
+        }
+        if(value == AMT4) {
+          printf("ERROR - Negative SHF value\n");
+          exit(3);
+        }
+      } else {
+        printf("ERROR - Invalid Constant\n");
+        exit(3);
+      }
     } else {
-      strncpy(number, inWord+1, (strlen(inWord)));
-      num = strtol(number, &end_ptr, 16);
-      if((num>15) && ((value == IMM5)||(value == AMT4))) printf("ERROR - Value out of range\n");
-      if((num>255) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
-      if((num>31) && (value == OFFSET6)) printf("ERROR - Value out of range\n");
-    }
-  }
-  else if(inWord[0]=='#') {
+      if(isdigit(inWord[1])) {
+        strncpy(number, inWord+1, (strlen(inWord)));
+        num = strtol(number, &end_ptr, 16);
+        if((num>15) && ((value == IMM5)||(value == AMT4))) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>255) && (value == OFFSET9)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>31) && (value == OFFSET6)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+      } else {
+        printf("ERROR - Invalid Constant\n");
+        exit(3);
+      }
+    }  
+  } else if(inWord[0]=='#') {
     if(inWord[1]=='-') {
-      strncpy(number, inWord+2, (strlen(inWord)));
-      num = atoi(number);
-      if((num>16) && (value == IMM5)) printf("ERROR - Value out of range\n");
-      if((num>256) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
-      if((num>32) && (value == OFFSET6)) printf("ERROR - Value out of range\n");
-      if(value == AMT4) printf("ERROR - Negative SHF value\n");
+      if(isdigit(inWord[2])) {
+        strncpy(number, inWord+2, (strlen(inWord)));
+        num = atoi(number);
+        if((num>16) && (value == IMM5)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>256) && (value == OFFSET9)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>32) && (value == OFFSET6)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if(value == AMT4) {
+          printf("ERROR - Negative SHF value\n");
+          exit(3);
+        }
+      } else {
+        printf("ERROR - Invalid Constant\n");
+        exit(3);
+      }
     } else {
-      strncpy(number, inWord+1, (strlen(inWord)));
-      num = atoi(number);
-      if((num>15) && ((value == IMM5)||(value == AMT4))) printf("ERROR - Value out of range\n");
-      if((num>255) && (value == OFFSET9)) printf("ERROR - Value out of range\n");
-      if((num>31) && (value == OFFSET6)) printf("ERROR - Value out of range\n");
+      if(isdigit(inWord[1])) {
+        strncpy(number, inWord+1, (strlen(inWord)));
+        num = atoi(number);
+        if((num>15) && ((value == IMM5)||(value == AMT4))) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>255) && (value == OFFSET9)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+        if((num>31) && (value == OFFSET6)) {
+          printf("ERROR - Value out of range\n");
+          exit(3);
+        }
+      } else {
+        printf("ERROR - Invalid Constant\n");
+        exit(3);
+      }
     }
+  } else {
+    printf("ERROR - Invalid Constant\n");
+    exit(3);
   }
 }
 
 void checkNumberOfOperands(int inOpCode, int inNum) {
+  int numOp=0;
+  if((inOpCode==ADD) || (inOpCode==AND) || (inOpCode==XOR) || (inOpCode==STB) || (inOpCode==STW) ||
+     (inOpCode==LSHF) || (inOpCode==RSHFA) || (inOpCode==RSHFL) || (inOpCode==LDW) || (inOpCode==LDB)) {
+    numOp=3;
+  } else if((inOpCode==JMP) || (inOpCode==JSRR) || (inOpCode==JSR)) {
+    numOp=1;
+  } else if((inOpCode==LEA) || (inOpCode==NOT) || (inOpCode==BR)) {
+    numOp=2;
+  } 
+  if(inNum!=numOp) {
+    printf("ERROR - Missing or Extra Operands %d %d \n", inNum, numOp);
+    exit(4); 
+  }
 }
   
 char *getLine(FILE *ptrFile) {
@@ -361,6 +448,14 @@ int isOpcode(char *inWord) {
     return 1;    
   } else
     return 0;
+}
+
+int isValidLabel(char *inWord) {
+  if(isOpcode(inWord)>0)
+    return 0;
+  if(isPseudoOp(inWord)>0)
+    return 0;
+  return 1;   
 }
 
 int getOpCode(char *inWord) {
@@ -431,6 +526,7 @@ int getRegisterOperand(char *inWord) {
   else if(strcmp(inWord,"R7")==0) return R7;
   else {
     printf(" ERROR - Invalid Register \n");
+    exit(4);
     return INVALID_REG;
   }
 }
@@ -497,7 +593,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   /*TODO - Immediate offset values need to be resolved .. not done*/
   int op1=0, op2=0, op3=0;
   int shift1=0, shift2=0, shift3=0;
-  int opCnt=0;
+  int cnt=0;
   /*ADD and AND and XOR*/
   if((inOpCode==ADD) || (inOpCode==AND) || (inOpCode==XOR)) {
     op1 = (getRegisterOperand(inWord1)); /*DR*/
@@ -515,7 +611,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     }
   }
   /*LEA*/
-  if(inOpCode==LEA) {
+  else if(inOpCode==LEA) {
     op1 = (getRegisterOperand(inWord1)); 
     shift1 = 9;
     cnt++;
@@ -530,6 +626,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         cnt++;
       } else {
         printf(" ERROR - Invalid Label\n");
+        exit(1);
       }
     }
   }
@@ -551,6 +648,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         cnt++;
       } else {
         printf(" ERROR - Invalid Label\n");
+        exit(1);
       }
     }
   }
@@ -642,6 +740,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         cnt++;
       } else {
         printf(" ERROR - Invalid Label\n");
+        exit(1);
       }
     }
   }
@@ -653,6 +752,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   else if((isPseudoOp(inWord0))>0) {
     op3=resolveNumber(inWord1);
   }
+  checkNumberOfOperands(inOpCode, cnt);
   inst = makeOpcode(inOpCode, op1, shift1, op2, shift2, op3, shift3);
   printf(" Decode: %x ",inst); 
 }
@@ -679,7 +779,6 @@ int isPseudoOp(char *inWord) {
 int offset(long int inAddr) {
   int offset = ((inAddr-g_LC)/2)-1;
   offset&=0x1ff;
-  /*printf(" Here Offset = %d ||| %x", offset, offset);*/
   return offset;
 }
 
