@@ -8,6 +8,7 @@ long g_LC=0;
 long g_Orig=0;
 int  g_currentLine=0;
 int  g_SymbolCnt=0;
+int  pDebug=0;
 
 enum g_lineType {
   COMMENT_ONLY,
@@ -133,6 +134,7 @@ int isValidLabel(char *inWord);
 int main(int argc, char **argv) {
   FILE *ptr_file;
   int numberLines = 255; /*start with 255 lines initially*/
+  int pError=0;
   g_currentLine = 0;
   g_CodeInfo = realloc(NULL, sizeof(g_metaData)*numberLines);
   if(!fopen(argv[1], "r")) {
@@ -141,8 +143,8 @@ int main(int argc, char **argv) {
   } else {
     /*First Pass*/
     ptr_file = fopen(argv[1], "r");
-    printf("First Pass\n");
-    printf("-----------\n"); 
+    if(pDebug==1) printf("First Pass\n");
+    if(pDebug==1) printf("-----------\n"); 
     char *readLine;
     while(strlen((readLine=getLine(ptr_file)))>1) {
       createSymbolTable(readLine, g_currentLine++);
@@ -151,8 +153,8 @@ int main(int argc, char **argv) {
     printSymbolMap();
     fclose(ptr_file);
     /*Second Pass*/
-    printf("Second Pass\n");
-    printf("-----------\n"); 
+    if(pDebug==1) printf("Second Pass\n");
+    if(pDebug==1) printf("-----------\n"); 
     ptr_file = fopen(argv[1], "r"); 
     g_LC=g_Orig;
     while(strlen((readLine=getLine(ptr_file)))>1) {
@@ -184,7 +186,7 @@ void createSymbolTable(char* readLine, int line) {
         } else { /*symbol*/
           g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
           if(isValidLabel(wordInLine)==0) {
-            printf("ERROR - Invalid Label \n");
+            if(pDebug==1) printf("ERROR - Invalid Label \n");
             exit(1);
           }
           storeSymbolMap(wordInLine);
@@ -217,14 +219,17 @@ void generateInstruction(char* readLine) {
     wordInLine = strtok (NULL, " ,");
   }
   int x=0;
-  printf(" LC=0x%lx ", g_LC);
+  if(pDebug==1) printf(" LC=0x%04lx ", g_LC);
   while(x<wordCnt) {
-    printf(" %s ",words[x++]);
+    if(pDebug==1) printf(" %s ",words[x]);
+    x++;
   }
   if(strcmp(words[0], ".ORIG")==0) {
     instruction = resolveNumber(words[1]);
+    printf("0x%04x",instruction); 
+    printf("\n");
     if(instruction%2!=0) {
-      printf(" ERROR - Invalid Constant \n");
+      if(pDebug==1) printf(" ERROR - Invalid Constant \n");
       exit(3);
     }
   } else if(isOpcode(words[0])>0) {
@@ -232,26 +237,29 @@ void generateInstruction(char* readLine) {
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
       generateOpCode(opCode, wordCnt, (&words[0][0]), (&words[1][0]), (&words[2][0]), (&words[3][0]));  
+      printf("\n");
     }
   } else if(isOpcode(words[1])>0) {
     if(opCode != INVALID_OP) {
       /*TODO the decode stuff here*/
       opCode = getOpCode(words[1]);
       generateOpCode(opCode, wordCnt, (&words[1][0]), (&words[2][0]), (&words[3][0]), (&words[4][0]));
+      printf("\n");
     }
   } else if(isPseudoOp(words[0])>0) {
     generateOpCode(INVALID_OP, wordCnt, (&words[0][0]), (&words[1][0]), (&words[2][0]), (&words[3][0]));
+    printf("\n");
   } else if(isPseudoOp(words[1])>0) {
     generateOpCode(INVALID_OP, wordCnt, (&words[1][0]), (&words[2][0]), (&words[3][0]), (&words[4][0]));
+    printf("\n");
   } else {
     if((wordCnt!=0) && (strcmp(words[0],".END")!=0)) {
-      printf(" ERROR - Invalid OPCODE \n");
+      if(pDebug) printf(" ERROR - Invalid OPCODE \n");
       exit(2);
     }
   } 
   if(wordCnt!=0)
    incrementLC();
-  printf("\n");
 }
 
 
@@ -315,23 +323,23 @@ void checkNumber(char *inWord, int value) {
         strncpy(number, inWord+2, (strlen(inWord)));
         num = strtol(number, &end_ptr, 16);
         if((num>16) && (value == IMM5)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>32) && (value == OFFSET6)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>256) && (value == OFFSET9)) {
-          printf("ERROR - Value out of range\n"); 
+          if(pDebug) printf("ERROR - Value out of range\n"); 
           exit(3);
         }
         if(value == AMT4) {
-          printf("ERROR - Negative SHF value\n");
+          if(pDebug) printf("ERROR - Negative SHF value\n");
           exit(3);
         }
       } else {
-        printf("ERROR - Invalid Constant\n");
+        if(pDebug) printf("ERROR - Invalid Constant\n");
         exit(3);
       }
     } else {
@@ -339,19 +347,19 @@ void checkNumber(char *inWord, int value) {
         strncpy(number, inWord+1, (strlen(inWord)));
         num = strtol(number, &end_ptr, 16);
         if((num>15) && ((value == IMM5)||(value == AMT4))) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>255) && (value == OFFSET9)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>31) && (value == OFFSET6)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
       } else {
-        printf("ERROR - Invalid Constant\n");
+        if(pDebug) printf("ERROR - Invalid Constant\n");
         exit(3);
       }
     }  
@@ -361,23 +369,23 @@ void checkNumber(char *inWord, int value) {
         strncpy(number, inWord+2, (strlen(inWord)));
         num = atoi(number);
         if((num>16) && (value == IMM5)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>256) && (value == OFFSET9)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>32) && (value == OFFSET6)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if(value == AMT4) {
-          printf("ERROR - Negative SHF value\n");
+          if(pDebug) printf("ERROR - Negative SHF value\n");
           exit(3);
         }
       } else {
-        printf("ERROR - Invalid Constant\n");
+        if(pDebug) printf("ERROR - Invalid Constant\n");
         exit(3);
       }
     } else {
@@ -385,24 +393,24 @@ void checkNumber(char *inWord, int value) {
         strncpy(number, inWord+1, (strlen(inWord)));
         num = atoi(number);
         if((num>15) && ((value == IMM5)||(value == AMT4))) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>255) && (value == OFFSET9)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
         if((num>31) && (value == OFFSET6)) {
-          printf("ERROR - Value out of range\n");
+          if(pDebug) printf("ERROR - Value out of range\n");
           exit(3);
         }
       } else {
-        printf("ERROR - Invalid Constant\n");
+        if(pDebug) printf("ERROR - Invalid Constant\n");
         exit(3);
       }
     }
   } else {
-    printf("ERROR - Invalid Constant\n");
+    if(pDebug) printf("ERROR - Invalid Constant\n");
     exit(3);
   }
 }
@@ -418,7 +426,7 @@ void checkNumberOfOperands(int inOpCode, int inNum) {
     numOp=2;
   } 
   if(inNum!=numOp) {
-    printf("ERROR - Missing or Extra Operands %d %d \n", inNum, numOp);
+    if(pDebug) printf("ERROR - Missing or Extra Operands %d %d \n", inNum, numOp);
     exit(4); 
   }
 }
@@ -455,6 +463,17 @@ int isValidLabel(char *inWord) {
     return 0;
   if(isPseudoOp(inWord)>0)
     return 0;
+  if(isdigit(inWord[0]) || isdigit(inWord))
+    return 0;
+  if((inWord[0]=='x') || (inWord[0]=='X'))
+    return 0;
+  int g=0;
+  while(g<strlen(inWord)) {
+    if(!isalnum(inWord[0])) {
+      return 0;
+    }
+    g++;
+  } 
   return 1;   
 }
 
@@ -525,7 +544,7 @@ int getRegisterOperand(char *inWord) {
   else if(strcmp(inWord,"R6")==0) return R6;
   else if(strcmp(inWord,"R7")==0) return R7;
   else {
-    printf(" ERROR - Invalid Register \n");
+    if(pDebug) printf(" ERROR - Invalid Register \n");
     exit(4);
     return INVALID_REG;
   }
@@ -625,7 +644,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op2 = offset(g_LMap[loc].addr)&0x1ff;
         cnt++;
       } else {
-        printf(" ERROR - Invalid Label\n");
+        if(pDebug) printf(" ERROR - Invalid Label\n");
         exit(1);
       }
     }
@@ -647,7 +666,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op3 = offset(g_LMap[loc].addr)&0x3f;
         cnt++;
       } else {
-        printf(" ERROR - Invalid Label\n");
+        if(pDebug) printf(" ERROR - Invalid Label\n");
         exit(1);
       }
     }
@@ -739,7 +758,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op3 = offset(g_LMap[loc].addr);
         cnt++;
       } else {
-        printf(" ERROR - Invalid Label\n");
+        if(pDebug) printf(" ERROR - Invalid Label\n");
         exit(1);
       }
     }
@@ -754,7 +773,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   }
   checkNumberOfOperands(inOpCode, cnt);
   inst = makeOpcode(inOpCode, op1, shift1, op2, shift2, op3, shift3);
-  printf(" Decode: %x ",inst); 
+  printf("0x%04x",inst); 
 }
 
 int makeOpcode(int inOpCode, int inOp1, int inShift1, int inOp2, int inShift2, int inOp3, 
@@ -785,7 +804,7 @@ int offset(long int inAddr) {
 void printSymbolMap() {
   int cnt=0;
   while(cnt<g_SymbolCnt) {
-    printf("%s %lx \n", g_LMap[cnt].symbol, g_LMap[cnt].addr);
+    if(pDebug) printf("%s %lx \n", g_LMap[cnt].symbol, g_LMap[cnt].addr);
     cnt++;
   } 
 }
@@ -836,14 +855,14 @@ void printCodeDescription() {
   while(line < g_currentLine) {
     word=0;
     while(word < g_CodeInfo[line].wordCount) {
-      printf("%s ", getWordType(g_CodeInfo[line].wordType[word]));
+      if(pDebug) printf("%s ", getWordType(g_CodeInfo[line].wordType[word]));
       word++;
     }
     line++;
-    printf("\n");
+    if(pDebug) printf("\n");
   }
 }
 
 void printInfoForLine(int line) {
-  printf("%s \n", getLineType(g_CodeInfo[line].lineType));
+  if(pDebug) printf("%s \n", getLineType(g_CodeInfo[line].lineType));
 }
