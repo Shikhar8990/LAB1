@@ -8,7 +8,7 @@ long g_LC=0;
 long g_Orig=0;
 int  g_currentLine=0;
 int  g_SymbolCnt=0;
-int  pDebug=0;
+int  pDebug=1;
 
 enum g_lineType {
   COMMENT_ONLY,
@@ -259,7 +259,7 @@ void generateInstruction(char* readLine) {
     }
   } 
   if(wordCnt!=0)
-   incrementLC();
+    incrementLC();
 }
 
 
@@ -463,9 +463,9 @@ int isValidLabel(char *inWord) {
     return 0;
   if(isPseudoOp(inWord)>0)
     return 0;
-  if(isdigit(inWord[0]) || isdigit(inWord))
-    return 0;
   if((inWord[0]=='x') || (inWord[0]=='X'))
+    return 0;
+  if(isdigit(inWord[0])) 
     return 0;
   int g=0;
   while(g<strlen(inWord)) {
@@ -473,7 +473,7 @@ int isValidLabel(char *inWord) {
       return 0;
     }
     g++;
-  } 
+  }
   return 1;   
 }
 
