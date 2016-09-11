@@ -8,7 +8,7 @@ long g_LC=0;
 long g_Orig=0;
 int  g_currentLine=0;
 int  g_SymbolCnt=0;
-int  pDebug=0;
+int  pDebug=1;
 
 enum g_lineType {
   COMMENT_ONLY,
@@ -173,6 +173,13 @@ void createSymbolTable(char* readLine, int line) {
     if((strcmp(wordInLine,";")==0) || (wordInLine[0] == ';')) {
       break;
     } else {
+      int wrd=0;
+      while(wrd<strlen(wordInLine)) {
+        wordInLine[wrd] = (toupper(wordInLine[wrd]));
+        wrd++;
+      }
+      printf(" %s ",wordInLine);
+      printf("\n");
       /*see if first word is a symbol or an OpCode*/
       if(wordCnt==0) {  
         if(isOpcode(wordInLine)>0) {
@@ -184,10 +191,15 @@ void createSymbolTable(char* readLine, int line) {
         } else if(isPseudoOp(wordInLine)>0) {
           g_CodeInfo[line].wordType[wordCnt] = PSEUDO;
         } else { /*symbol*/
+          printf(" Here %s ", wordInLine);
           g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
           if(isValidLabel(wordInLine)==0) {
-            if(pDebug==1) printf("ERROR - Invalid Label \n");
+            if(pDebug==1) printf("ERROR1 - Invalid Label \n");
             exit(1);
+          }
+          if(findSymbol(wordInLine)<100) {
+            if(pDebug==1) printf("ERROR - Duplicate Label \n");
+            exit(1); 
           }
           storeSymbolMap(wordInLine);
         }
@@ -215,7 +227,14 @@ void generateInstruction(char* readLine) {
   wordInLine = strtok(readLine, " ,");
   while (wordInLine != NULL) {
     if((strcmp(wordInLine,";")==0) || (wordInLine[0]==';')) break;
-    else strcpy(words[wordCnt++], wordInLine);
+    else {
+      int wrd=0;
+      while(wrd<strlen(wordInLine)) {
+        wordInLine[wrd] = (toupper(wordInLine[wrd]));
+        wrd++;
+      }
+      strcpy(words[wordCnt++], wordInLine);
+    }
     wordInLine = strtok (NULL, " ,");
   }
   int x=0;
@@ -292,7 +311,7 @@ long int resolveNumber(char *inWord) {
   char number[strlen(inWord)];
   long int num;
   char *end_ptr;
-  if(inWord[0]=='x') {
+  if((inWord[0]=='x') || (inWord[0]=='X')) {
     if(inWord[1]=='-') {
       strncpy(number, inWord+2, (strlen(inWord))); 
       num = (~strtol(number, &end_ptr, 16))+1;
@@ -317,7 +336,7 @@ void checkNumber(char *inWord, int value) {
   char number[strlen(inWord)];
   long int num;
   char *end_ptr;
-  if(inWord[0]=='x') {
+  if((inWord[0]=='x') || (inWord[0]=='X')) {
     if(inWord[1]=='-') {
       if(isdigit(inWord[2])) {
         strncpy(number, inWord+2, (strlen(inWord)));
@@ -452,7 +471,8 @@ int isOpcode(char *inWord) {
      (strcmp(inWord,"BRN")==0)  || (strcmp(inWord,"BRNZP")==0) || (strcmp(inWord,"LDW")==0)  || (strcmp(inWord,"RSHFL")==0) ||
      (strcmp(inWord,"BRP")==0)  || (strcmp(inWord,"HALT")==0)  || (strcmp(inWord,"LEA")==0)  || (strcmp(inWord,"RSHFA")==0) || 
      (strcmp(inWord,"BRNP")==0) || (strcmp(inWord,"JMP")==0)   || (strcmp(inWord,"NOP")==0)  || (strcmp(inWord,"STB")==0)   || 
-     (strcmp(inWord,"TRAP")==0) || (strcmp(inWord,"XOR")==0)) {
+     (strcmp(inWord,"TRAP")==0) || (strcmp(inWord,"XOR")==0)   || (strcmp(inWord,"GETC")==0) || (strcmp(inWord,"IN")==0)  ||
+     (strcmp(inWord,"OUT")==0)  || (strcmp(inWord,"PUTS")==0)) {
     return 1;    
   } else
     return 0;
@@ -545,6 +565,7 @@ int getRegisterOperand(char *inWord) {
   else if(strcmp(inWord,"R7")==0) return R7;
   else {
     if(pDebug) printf(" ERROR - Invalid Register \n");
+    if(pDebug) printf(" ERROR - Invalid Register g%sg \n", inWord);
     exit(4);
     return INVALID_REG;
   }
@@ -620,12 +641,17 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = (getRegisterOperand(inWord2)); /*SR1*/
     shift2 = 6;
     cnt+=2;
-    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
-      checkNumber(inWord3, IMM5);
-      op3 = (resolveNumber(inWord3)&0x1f)|0x20;
-      cnt++;
-    } else { /*SR2*/
-      op3 = (getRegisterOperand(inWord3));
+    if(strlen(inWord3)!=0) {
+      if((inWord3[0]=='x') || (inWord3[0]=='X') || (inWord3[0]=='#')) {
+        checkNumber(inWord3, IMM5);
+        op3 = (resolveNumber(inWord3)&0x1f)|0x20;
+        cnt++;
+      } else { /*SR2*/
+        op3 = (getRegisterOperand(inWord3));
+        cnt++;
+      }
+    } else { /*NOT Case*/
+      op3 = 0x3f;
       cnt++;
     }
   }
@@ -634,7 +660,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op1 = (getRegisterOperand(inWord1)); 
     shift1 = 9;
     cnt++;
-    if((inWord2[0]=='x') || (inWord2[0]=='#')) {
+    if((inWord2[0]=='x') || (inWord2[0]=='X') || (inWord2[0]=='#')) {
       checkNumber(inWord2, OFFSET9);
       op2 = resolveNumber(inWord2)&0x1ff;
       cnt++;
@@ -644,7 +670,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op2 = offset(g_LMap[loc].addr)&0x1ff;
         cnt++;
       } else {
-        if(pDebug) printf(" ERROR - Invalid Label\n");
+        if(pDebug) printf(" ERROR2 - Invalid Label\n");
         exit(1);
       }
     }
@@ -656,7 +682,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = (getRegisterOperand(inWord2));
     shift2 = 6;
     cnt+=2;
-    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+    if((inWord3[0]=='x') || (inWord3[0]=='X') || (inWord3[0]=='#')) {
       checkNumber(inWord3, OFFSET6);
       op3 = resolveNumber(inWord3)&0x3f;
       cnt++;
@@ -666,7 +692,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op3 = offset(g_LMap[loc].addr)&0x3f;
         cnt++;
       } else {
-        if(pDebug) printf(" ERROR - Invalid Label\n");
+        if(pDebug) printf(" ERROR3 - Invalid Label\n");
         exit(1);
       }
     }
@@ -678,7 +704,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = getRegisterOperand(inWord2);
     shift2 = 6;
     cnt+=2;
-    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+    if((inWord3[0]=='x') || (inWord3[0]=='X') || (inWord3[0]=='#')) {
       cnt++;
       op3 = resolveNumber(inWord3)&0xf;
       checkNumber(inWord3, AMT4);
@@ -690,7 +716,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   }
   /*JSR or JSRR*/
   else if(inOpCode==JSR) {
-    if((inWord1[0]=='x') || (inWord1[0]=='#')) {
+    if((inWord1[0]=='x') || (inWord1[0]=='X') || (inWord1[0]=='#')) {
       cnt++;
       checkNumber(inWord1, OFFSET11);
       op1 = (resolveNumber(inWord1)&0x7ff)|0x800;
@@ -707,14 +733,14 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     cnt++;
   }
   /*NOT*/
-  else if(inOpCode==NOT) {
+  /*else if(inOpCode==NOT) {
     op1 = getRegisterOperand(inWord1);
     shift1 = 9;
     op2 = getRegisterOperand(inWord2);
     shift2 = 6;
     op3 = 0x3f;
     cnt+=2;
-  }
+  }*/
   /*RET*/
   else if(inOpCode==RET) {
     op1 = 7;
@@ -728,14 +754,14 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op2 = getRegisterOperand(inWord2);
     shift2 = 6;
     cnt+=2;
-    if((inWord3[0]=='x') || (inWord3[0]=='#')) {
+    if((inWord3[0]=='x') || (inWord3[0]=='X') || (inWord3[0]=='#')) {
       op3 = resolveNumber(inWord3)&0x2f;
       checkNumber(inWord3, OFFSET6);
       cnt++;
     }
   }
   /*BR(N/Z/P)*/
-  else if(inOpCode==BR) {
+  else if(inOpCode==BR && (strcmp(inWord0, "NOP")!=0)) {
     int nzp=0;
     if(isBR_NPZ(inWord0, 'N')>0)
       nzp=4;
@@ -748,7 +774,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
     op1=nzp;
     shift1=9;
     cnt++;
-    if((inWord1[0]=='x') || (inWord1[0]=='#')) {
+    if((inWord1[0]=='x') || (inWord1[0]=='X') || (inWord1[0]=='#')) {
        op3 = resolveNumber(inWord3);
        checkNumber(inWord1, OFFSET9);
        cnt++;
@@ -758,10 +784,13 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op3 = offset(g_LMap[loc].addr);
         cnt++;
       } else {
-        if(pDebug) printf(" ERROR - Invalid Label\n");
+        if(pDebug) printf(" ERROR4 - Invalid Label\n");
         exit(1);
       }
     }
+  }
+  else if(inOpCode==NOP && (strcmp(inWord0, "NOP")==0)) {
+    cnt+=2;
   }
   /*HALT*/
   else if(inOpCode==HALT) {
@@ -769,6 +798,10 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
   }
   /*PSEUDO OPS*/
   else if((isPseudoOp(inWord0))>0) {
+    if(strlen(inWord1) == 0) {
+      if(pDebug) printf(" Missing Pseudo Op Operand \n");
+      exit(4);
+    }
     op3=resolveNumber(inWord1);
   }
   checkNumberOfOperands(inOpCode, cnt);

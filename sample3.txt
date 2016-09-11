@@ -1,0 +1,84 @@
+ ; Initialization
+ ;
+.ORIG #4096
+ ADD R2,R2,#10 ; R2 is counter, initialize to 0
+ LEA R3,PTR ; R3 is pointer to characters
+ LDW R3,R3,#0
+ TRAP x23 ; R0 gets character input
+ LDB R1,R3,#0 ; R1 gets the next character
+ ;
+ ; Test character for end of file
+ ;
+ TEST ADD R4,R1,x-10 ; Test for EOT
+ BRz OUTPUT ; If done, prepare the output
+ ;
+ ; Test character for match. If a match, increment count.
+ ;
+ NOT R1,R1
+ ADD R1,R1,R0 ; If match, R1 = xFFFF
+ NOT R1,R1 ; If match, R1 = x0000
+ BRnp GETCHAR ; If no match, do not increment
+ ADD R2,R2,#1
+ NOP
+ NOP
+ ;
+ ; Get next character from the file
+ ;
+ GETCHAR ADD R3,R3,#1 ; Increment the pointer
+  LDB R1,R3,#0 ; R1 gets the next character to test
+ BRnzp TEST
+ ;
+ ; Output the count.
+ ;
+ OUTPUT LEA R0,ASCII ; Load the ASCII template
+ LDW R0,R0,#0
+ ADD R0,R0,R2 ; Convert binary to ASCII
+ TRAP x21 ; ASCII code in R0 is displayed
+ TRAP x25 ; Halt machine
+ ;
+ ; Storage for pointer and ASCII template
+ ;
+ ASCII .FILL x0030
+ PTR .FILL x00e0
+ ADD R2,R3,#7
+ ADD R4,R3,R2
+ AND R2,R3,#-3
+ AND R4,R3,R2
+ BR PTR
+ BRz ASCII
+ BRnzp MM
+ BRnz SS
+ BRn ASCII
+ BRp MM
+ BRnz SS
+ BRnp ASCII
+ BRzp MM
+ LEA R7,PTR
+ JMP R2
+ JSR JANNAT
+ JSRR R5
+
+JANNAT LDW R2,R3,#8
+RET
+ MM  .FILL #3000
+ SS  .FILL x4000
+LDB R1,R2,#9
+LDB R1,R2,x1a
+LDW R1,R2,x18
+LDW R1,R2,x-6
+LDW R1,R2,#8
+LDW R1,R2,#2
+LEA R1,JANNAT
+NOT R4,R2
+RTI
+LSHF R3,R2,#5
+RSHFL R3,R2,#15
+RSHFA R4,R2,#0
+STB R4,R1,x-10
+STW R3,R2,#8
+STW R3,R2,#6
+TRAP x23
+HALT
+XOR R3,R1,R2
+XOR R3,R5,#12
+.END
