@@ -117,11 +117,8 @@ int main(int argc, char **argv) {
     ptr_file = fopen(argv[1], "r");
     if(pDebug==1) printf("First Pass\n");
     if(pDebug==1) printf("-----------\n"); 
-    /*char *readLine;*/
     char readLine[255];
-    /*while(strlen((readLine=getLine(ptr_file)))>1) {*/
     while(fgets(readLine, 255, ptr_file)!=NULL) {
-      /*if((strcmp(readLine,"\n")!=0) && (strcmp(readLine, "\r\n")!=0))*/
       if(strlen(readLine)>2)
         createSymbolTable(readLine, g_currentLine++);
     }
@@ -132,12 +129,9 @@ int main(int argc, char **argv) {
     if(pDebug==1) printf("-----------\n"); 
     ptr_file = fopen(argv[1], "r"); 
     g_LC=g_Orig;
-    /*while(strlen((readLine=getLine(ptr_file)))>1) {*/
     while(fgets(readLine, 255, ptr_file)!=NULL) {
-      /*if(strcmp(readLine, ".END")==0) break;*/
       if(strlen(readLine)>2)
         generateInstruction(readLine);
-      /*free(readLine);*/
     }
   }
   return 0;
@@ -226,13 +220,11 @@ void generateInstruction(char* readLine) {
   } else if(isOpcode(words[0])>0) {
     opCode = getOpCode(words[0]);
     if(opCode != INVALID_OP) {
-      /*TODO the decode stuff here*/
       generateOpCode(opCode, wordCnt, (&words[0][0]), (&words[1][0]), (&words[2][0]), (&words[3][0]));  
       printf("\n");
     }
   } else if(isOpcode(words[1])>0) {
     if(opCode != INVALID_OP) {
-      /*TODO the decode stuff here*/
       opCode = getOpCode(words[1]);
       generateOpCode(opCode, wordCnt, (&words[1][0]), (&words[2][0]), (&words[3][0]), (&words[4][0]));
       printf("\n");
