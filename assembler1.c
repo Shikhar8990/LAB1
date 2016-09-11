@@ -8,16 +8,7 @@ long g_LC=0;
 long g_Orig=0;
 int  g_currentLine=0;
 int  g_SymbolCnt=0;
-int  pDebug=1;
-
-enum g_lineType {
-  COMMENT_ONLY,
-  OPCODE_OPERAND,
-  SYMBOL_OPCODE_OPERAND,
-  OPCODE_OPERAND_COMMENT,
-  SYMBOL_OPCODE_OPERAND_COMMENT,
-  INVALID
-} g_lineType;
+int  pDebug=0;
 
 enum g_OpCode {
   ADD   = 0x1,
@@ -96,37 +87,19 @@ typedef struct g_SymbolMap {
   long int addr;
 } g_SymbolMap;
 
-typedef struct g_metaData {
-  int lineType;
-  long int LC;
-  int numberOperands;
-  int wordCount;
-  int valid;
-  char *words[4];
-  int opCode;
-  int wordType[4];
-  int instruction; 
-} g_metaData;
-
-g_metaData *g_CodeInfo = NULL;
 g_SymbolMap g_LMap[100]; /*100 symbols*/ 
 
 char *getLine(FILE *ptrFile);
 void generateInstruction(char* readLine);
 void createSymbolTable(char* readLine, int line);
-void setOpcode(char *inWord, int line);
 void initLC(int inLC);
 void incrementLC();
 void storeSymbolMap(char *inSymbol);
-void printInfoForLine(int line);
 void printSymbolMap();
-void printCodeDescription();
 void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, char *inWord2, char *inWord3);
 int isPseudoOp(char *inWord); 
 int isOpcode(char *inWord);
 int isBR_NPZ(char *inWord, char inNZP);
-const char* getLineType(enum g_lineType line);
-const char* getWordType(enum g_WordType inWord);
 long int resolveNumber(char *inWord);
 int findSymbol(char* inSymbol);
 int isValidLabel(char *inWord);
@@ -136,7 +109,6 @@ int main(int argc, char **argv) {
   int numberLines = 255; /*start with 255 lines initially*/
   int pError=0;
   g_currentLine = 0;
-  g_CodeInfo = realloc(NULL, sizeof(g_metaData)*numberLines);
   if(!fopen(argv[1], "r")) {
     perror("Can not open file");
     exit(-1);
@@ -145,10 +117,13 @@ int main(int argc, char **argv) {
     ptr_file = fopen(argv[1], "r");
     if(pDebug==1) printf("First Pass\n");
     if(pDebug==1) printf("-----------\n"); 
-    char *readLine;
-    while(strlen((readLine=getLine(ptr_file)))>1) {
-      createSymbolTable(readLine, g_currentLine++);
-      free(readLine);
+    /*char *readLine;*/
+    char readLine[255];
+    /*while(strlen((readLine=getLine(ptr_file)))>1) {*/
+    while(fgets(readLine, 255, ptr_file)!=NULL) {
+      /*if((strcmp(readLine,"\n")!=0) && (strcmp(readLine, "\r\n")!=0))*/
+      if(strlen(readLine)>2)
+        createSymbolTable(readLine, g_currentLine++);
     }
     printSymbolMap();
     fclose(ptr_file);
@@ -157,9 +132,12 @@ int main(int argc, char **argv) {
     if(pDebug==1) printf("-----------\n"); 
     ptr_file = fopen(argv[1], "r"); 
     g_LC=g_Orig;
-    while(strlen((readLine=getLine(ptr_file)))>1) {
-      generateInstruction(readLine);
-      free(readLine);
+    /*while(strlen((readLine=getLine(ptr_file)))>1) {*/
+    while(fgets(readLine, 255, ptr_file)!=NULL) {
+      /*if(strcmp(readLine, ".END")==0) break;*/
+      if(strlen(readLine)>2)
+        generateInstruction(readLine);
+      /*free(readLine);*/
     }
   }
   return 0;
@@ -167,8 +145,9 @@ int main(int argc, char **argv) {
 
 void createSymbolTable(char* readLine, int line) {
   char* wordInLine = NULL;
+  char words[4][255];
   int wordCnt=0;
-  wordInLine = strtok(readLine, " ,");
+  wordInLine = strtok(readLine, " ,\n");
   while (wordInLine != NULL) {
     if((strcmp(wordInLine,";")==0) || (wordInLine[0] == ';')) {
       break;
@@ -178,27 +157,20 @@ void createSymbolTable(char* readLine, int line) {
         wordInLine[wrd] = (toupper(wordInLine[wrd]));
         wrd++;
       }
-      printf(" %s ",wordInLine);
-      printf("\n");
+      strcpy(words[wordCnt],wordInLine); 
       /*see if first word is a symbol or an OpCode*/
       if(wordCnt==0) {  
         if(isOpcode(wordInLine)>0) {
-          g_CodeInfo[line].wordType[wordCnt] = OPCODE;       
         } else if(strcmp(wordInLine, ".ORIG")==0) { /*.ORIG*/
-          g_CodeInfo[line].wordType[wordCnt] = ORIG;
         } else if(strcmp(wordInLine, ".END")==0) { /*.END*/
-          g_CodeInfo[line].wordType[wordCnt] = END;
         } else if(isPseudoOp(wordInLine)>0) {
-          g_CodeInfo[line].wordType[wordCnt] = PSEUDO;
         } else { /*symbol*/
-          printf(" Here %s ", wordInLine);
-          g_CodeInfo[line].wordType[wordCnt] = SYMBOL;
           if(isValidLabel(wordInLine)==0) {
-            if(pDebug==1) printf("ERROR1 - Invalid Label \n");
+            if(pDebug==1) printf("ERROR1 - Invalid Label");
             exit(1);
           }
           if(findSymbol(wordInLine)<100) {
-            if(pDebug==1) printf("ERROR - Duplicate Label \n");
+            if(pDebug==1) printf("ERROR - Duplicate Label g%sg \n", wordInLine);
             exit(1); 
           }
           storeSymbolMap(wordInLine);
@@ -206,16 +178,16 @@ void createSymbolTable(char* readLine, int line) {
       }
       /*look at second words*/
       if(wordCnt==1) {
-        if(g_CodeInfo[line].wordType[0]==ORIG) {
+        if(strcmp(words[0], ".ORIG")==0) {
           initLC(resolveNumber(wordInLine));
           g_Orig = g_LC; 
         }
       }
     }
-    wordInLine = strtok (NULL, " ,");
+    wordInLine = strtok (NULL, " ,\n");
     wordCnt++;
   }
-  if((wordCnt!=0) /*&& (g_CodeInfo[line].wordType[0]!=ORIG)*/) {
+  if(wordCnt!=0) {
     incrementLC();
   }
 }
@@ -224,7 +196,7 @@ void generateInstruction(char* readLine) {
   char* wordInLine = NULL;
   char words[4][20];
   int wordCnt=0, instruction=0, opCode=0;
-  wordInLine = strtok(readLine, " ,");
+  wordInLine = strtok(readLine, " ,\n");
   while (wordInLine != NULL) {
     if((strcmp(wordInLine,";")==0) || (wordInLine[0]==';')) break;
     else {
@@ -235,22 +207,22 @@ void generateInstruction(char* readLine) {
       }
       strcpy(words[wordCnt++], wordInLine);
     }
-    wordInLine = strtok (NULL, " ,");
+    wordInLine = strtok (NULL, " ,\n");
   }
   int x=0;
-  if(pDebug==1) printf(" LC=0x%04lx ", g_LC);
+  if(pDebug==1) printf(" LC1=0x%04lx ", g_LC);
   while(x<wordCnt) {
-    if(pDebug==1) printf(" %s ",words[x]);
+    if(pDebug==1) printf(" word = %d  %s ",x, words[x]);
     x++;
   }
+  if(wordCnt!=0) {
   if(strcmp(words[0], ".ORIG")==0) {
     instruction = resolveNumber(words[1]);
-    printf("0x%04x",instruction); 
-    printf("\n");
     if(instruction%2!=0) {
       if(pDebug==1) printf(" ERROR - Invalid Constant \n");
       exit(3);
     }
+    printf("0x%04x\n",instruction); 
   } else if(isOpcode(words[0])>0) {
     opCode = getOpCode(words[0]);
     if(opCode != INVALID_OP) {
@@ -277,6 +249,7 @@ void generateInstruction(char* readLine) {
       exit(2);
     }
   } 
+  }
   if(wordCnt!=0)
     incrementLC();
 }
@@ -472,7 +445,7 @@ int isOpcode(char *inWord) {
      (strcmp(inWord,"BRP")==0)  || (strcmp(inWord,"HALT")==0)  || (strcmp(inWord,"LEA")==0)  || (strcmp(inWord,"RSHFA")==0) || 
      (strcmp(inWord,"BRNP")==0) || (strcmp(inWord,"JMP")==0)   || (strcmp(inWord,"NOP")==0)  || (strcmp(inWord,"STB")==0)   || 
      (strcmp(inWord,"TRAP")==0) || (strcmp(inWord,"XOR")==0)   || (strcmp(inWord,"GETC")==0) || (strcmp(inWord,"IN")==0)  ||
-     (strcmp(inWord,"OUT")==0)  || (strcmp(inWord,"PUTS")==0)) {
+     (strcmp(inWord,"OUT")==0)  || (strcmp(inWord,"PUTS")==0)  || (strcmp(inWord,"STW")==0)  || (strcmp(inWord,"RTI")==0)) {
     return 1;    
   } else
     return 0;
@@ -565,67 +538,9 @@ int getRegisterOperand(char *inWord) {
   else if(strcmp(inWord,"R7")==0) return R7;
   else {
     if(pDebug) printf(" ERROR - Invalid Register \n");
-    if(pDebug) printf(" ERROR - Invalid Register g%sg \n", inWord);
     exit(4);
     return INVALID_REG;
   }
-}
-
-void setOpcode(char *inWord, int line) {
-  if(strcmp(inWord,"ADD")==0) 
-    g_CodeInfo[line].opCode=ADD;   
-  else if(strcmp(inWord,"AND")==0)
-    g_CodeInfo[line].opCode=AND; 
-  else if(strcmp(inWord,"BR")==0)
-    g_CodeInfo[line].opCode=BR; 
-  else if(strcmp(inWord,"BRN")==0)
-    g_CodeInfo[line].opCode=BRN; 
-  else if(strcmp(inWord,"BRP")==0)
-    g_CodeInfo[line].opCode=BRP;
-  else if(strcmp(inWord,"BRNP")==0)
-    g_CodeInfo[line].opCode=BRNP;
-  else if(strcmp(inWord,"TRAP")==0)
-    g_CodeInfo[line].opCode=TRAP;
-  else if(strcmp(inWord,"BRZ")==0)
-    g_CodeInfo[line].opCode=BRZ;
-  else if(strcmp(inWord,"BRNZ")==0)
-    g_CodeInfo[line].opCode=BRNZ;
-  else if(strcmp(inWord,"BRZP")==0)
-    g_CodeInfo[line].opCode=BRZP;
-  else if(strcmp(inWord,"BRNZP")==0)
-    g_CodeInfo[line].opCode=BRNZP;
-  else if(strcmp(inWord,"HALT")==0)
-    g_CodeInfo[line].opCode=HALT;
-  else if(strcmp(inWord,"JMP")==0)
-    g_CodeInfo[line].opCode=JMP;
-  else if(strcmp(inWord,"XOR")==0)
-    g_CodeInfo[line].opCode=XOR;
-  else if(strcmp(inWord,"JSR")==0)
-    g_CodeInfo[line].opCode=JSR;
-  else if(strcmp(inWord,"JSRR")==0)
-    g_CodeInfo[line].opCode=JSRR;
-  else if(strcmp(inWord,"LDB")==0)
-    g_CodeInfo[line].opCode=LDB;
-  else if(strcmp(inWord,"LDW")==0)
-    g_CodeInfo[line].opCode=LDW;
-  else if(strcmp(inWord,"LEA")==0)
-    g_CodeInfo[line].opCode=LEA;
-  else if(strcmp(inWord,"NOP")==0)
-    g_CodeInfo[line].opCode=NOP;
-  else if(strcmp(inWord,"NOT")==0)
-    g_CodeInfo[line].opCode=NOT;
-  else if(strcmp(inWord,"RET")==0)
-    g_CodeInfo[line].opCode=RET;
-  else if(strcmp(inWord,"LSHF")==0)
-    g_CodeInfo[line].opCode=LSHF;
-  else if(strcmp(inWord,"RSHFL")==0)
-    g_CodeInfo[line].opCode=RSHFL;
-  else if(strcmp(inWord,"RSHFA")==0)
-    g_CodeInfo[line].opCode=RSHFA;
-  else if(strcmp(inWord,"STB")==0)
-    g_CodeInfo[line].opCode=STB;
-  else 
-    g_CodeInfo[line].opCode=INVALID_OP;
 }
 
 void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, char *inWord2, char *inWord3) {
@@ -670,7 +585,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op2 = offset(g_LMap[loc].addr)&0x1ff;
         cnt++;
       } else {
-        if(pDebug) printf(" ERROR2 - Invalid Label\n");
+        if(pDebug) printf(" ERROR2 - Invalid Label");
         exit(1);
       }
     }
@@ -714,35 +629,37 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op3 = op3|(0x10);
     } 
   }
-  /*JSR or JSRR*/
-  else if(inOpCode==JSR) {
+  /*JSR*/
+  else if(strcmp(inWord0, "JSR")==0) {
     if((inWord1[0]=='x') || (inWord1[0]=='X') || (inWord1[0]=='#')) {
       cnt++;
       checkNumber(inWord1, OFFSET11);
       op1 = (resolveNumber(inWord1)&0x7ff)|0x800;
-    } else {
-      cnt++;
-      op1 = getRegisterOperand(inWord1);
-      shift1 = 6;
+    } else { /*use it as a mnemonic*/
+      int loc = findSymbol(inWord1);
+      if(loc<100) {
+        op2 = offset(g_LMap[loc].addr)&0x1ff;
+        cnt++;
+      } else {
+        if(pDebug) printf(" ERROR2333 - Invalid Label\n");
+        exit(1);
+      }
     }
   }
+  /*JSRR*/
+  else if(strcmp(inWord0, "JSRR")==0) {
+    cnt++;
+    op1 = getRegisterOperand(inWord1);
+    shift1 = 6;
+  }
   /*JMP*/
-  else if(inOpCode==JMP) {
+  else if(strcmp(inWord0, "JMP")==0) {
     op1 = getRegisterOperand(inWord1);
     shift1 = 6;
     cnt++;
   }
-  /*NOT*/
-  /*else if(inOpCode==NOT) {
-    op1 = getRegisterOperand(inWord1);
-    shift1 = 9;
-    op2 = getRegisterOperand(inWord2);
-    shift2 = 6;
-    op3 = 0x3f;
-    cnt+=2;
-  }*/
   /*RET*/
-  else if(inOpCode==RET) {
+  else if(strcmp(inWord0, "RET")==0) {
     op1 = 7;
     shift1 = 6;
     cnt++;
@@ -784,7 +701,7 @@ void generateOpCode(int inOpCode, int inWordCnt, char *inWord0, char *inWord1, c
         op3 = offset(g_LMap[loc].addr);
         cnt++;
       } else {
-        if(pDebug) printf(" ERROR4 - Invalid Label\n");
+        if(pDebug) printf(" ERROR4 - Invalid Label g%sg\n", inWord1);
         exit(1);
       }
     }
@@ -852,50 +769,4 @@ int isBR_NPZ(char *inWord, char inNZP) {
     }
   }
   return 0;
-}
-
-const char* getLineType(enum g_lineType line) {
-  switch(line) {
-    case COMMENT_ONLY:                 return "COMMENT_ONLY"; break;
-    case ORIG:                         return "ORIG"; break;
-    case END:                          return "END"; break;
-    case OPCODE_OPERAND:               return "OPCODE_OPERAND"; break;
-    case SYMBOL_OPCODE_OPERAND:        return "SYMBOL_OPCODE_OPERAND"; break;
-    case OPCODE_OPERAND_COMMENT:       return "OPCODE_OPERAND_COMMENT"; break;
-    case SYMBOL_OPCODE_OPERAND_COMMENT:return "SYMBOL_OPCODE_OPERAND_COMMENT"; break;
-    case PSEUDO:                       return "PSEUDO"; break;
-    default:                           return "INVALID";
-  }
-}
-
-const char* getWordType(enum g_WordType inWord) {
-  switch(inWord) {
-    case UNKNOWN:       return "UNKNOWN"; break;
-    case SYMBOL:        return "SYMBOL"; break;
-    case OPCODE:        return "OPCODE"; break;
-    case OPERAND_REG:   return "OPERAND_REG"; break;
-    case OPERAND_IMM:   return "OPERAND_IMM"; break;
-    case OPERAND_SYMBOL:return "OPERAND_SYMBOL"; break;
-    case PSEUDO:        return "PSEUDO"; break;
-    case ORIG:          return "ORIG"; break;
-    case END:           return "END"; break;
-    default:            return "UNKNOWN";
-  }
-}
-
-void printCodeDescription() {
-  int line=0, word=0;
-  while(line < g_currentLine) {
-    word=0;
-    while(word < g_CodeInfo[line].wordCount) {
-      if(pDebug) printf("%s ", getWordType(g_CodeInfo[line].wordType[word]));
-      word++;
-    }
-    line++;
-    if(pDebug) printf("\n");
-  }
-}
-
-void printInfoForLine(int line) {
-  if(pDebug) printf("%s \n", getLineType(g_CodeInfo[line].lineType));
 }
